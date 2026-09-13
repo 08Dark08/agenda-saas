@@ -1,4 +1,10 @@
-'use client';
+// upgrade-landing-sales.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("🚀 Aplicando a Landing Page Comercial de Alta Conversão...\n");
+
+const content = `'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
@@ -250,7 +256,7 @@ export default function LandingPage() {
                 className="w-full flex items-center justify-between text-left text-sm font-extrabold text-slate-900"
               >
                 <span>{item.q}</span>
-                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${openFaq === idx ? 'rotate-180 text-blue-600' : ''}`} />
+                <ChevronDown className={\`w-4 h-4 text-slate-400 transition-transform \${openFaq === idx ? 'rotate-180 text-blue-600' : ''}\`} />
               </button>
               {openFaq === idx && (
                 <p className="mt-3 text-xs text-slate-500 leading-relaxed font-medium pt-2 border-t border-slate-100">
@@ -281,4 +287,7 @@ export default function LandingPage() {
       </footer>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(path.join(process.cwd(), "src/app/page.tsx"), content, "utf-8");
+console.log("✓ Landing page de alta conversão atualizada em: src/app/page.tsx");
