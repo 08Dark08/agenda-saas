@@ -8,7 +8,6 @@ export function ShareLinkCard({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // Detecta automaticamente se está na Vercel ou em localhost
     if (typeof window !== 'undefined') {
       setPublicUrl(`${window.location.origin}/agendar/${slug}`);
     }
@@ -34,7 +33,6 @@ export function ShareLinkCard({ slug }: { slug: string }) {
         </p>
       </div>
 
-      {/* Caixa do Link com Botão de Copiar */}
       <div className="p-2.5 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-between gap-2">
         <span className="text-xs font-mono text-white truncate pl-1">
           {publicUrl || `https://agenda-saas-five.vercel.app/agendar/${slug}`}
@@ -42,7 +40,6 @@ export function ShareLinkCard({ slug }: { slug: string }) {
         <button
           onClick={handleCopy}
           type="button"
-          title="Copiar link"
           className="shrink-0 p-2 bg-white text-blue-700 hover:bg-blue-50 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
         >
           {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
