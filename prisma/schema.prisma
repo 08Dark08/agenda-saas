@@ -1,0 +1,467 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  ADMIN
+  PROFESSIONAL
+  STAFF
+}
+
+enum PlanTier {
+  FREE
+  BASIC
+  PRO
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  WAITING_PAYMENT
+  PAID
+  CANCELLED
+  RESCHEDULED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  NOT_REQUESTED
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+enum PaymentGateway {
+  STRIPE
+  ASAAS
+  MERCADO_PAGO
+}
+
+enum PaymentRequirement {
+  NONE
+  FULL_UPFRONT
+  FIXED_DEPOSIT
+  PERCENTAGE_DEPOSIT
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  INTERNAL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model Organization {
+  id                String       @id @default(uuid())
+  slug              String       @unique
+  name              String
+  legalName         String?
+  document          String?
+  phone             String
+  email             String
+  timezone          String       @default("America/Sao_Paulo")
+  currency          String       @default("BRL")
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  members           OrganizationMember[]
+  professionals     Professional[]
+  services          Service[]
+  clients           Client[]
+  appointments      Appointment[]
+  publicSettings    PublicBookingSettings?
+  subscription      Subscription?
+  payments          Payment[]
+  auditLogs         AuditLog[]
+  whatsAppConfig    WhatsAppConnection?
+  notificationLogs  NotificationLog[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model User {
+  id                String       @id @default(uuid())
+  email             String       @unique
+  passwordHash      String
+  fullName          String
+  phone             String?
+  avatarUrl         String?
+  isSuperAdmin      Boolean      @default(false)
+  isActive          Boolean      @default(true)
+  emailVerifiedAt   DateTime?
+  resetToken        String?
+  resetTokenExpires DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  memberships       OrganizationMember[]
+  auditLogs         AuditLog[]
+
+  @@index([email])
+}
+
+model OrganizationMember {
+  id              String       @id @default(uuid())
+  organizationId  String
+  userId          String
+  role            UserRole     @default(STAFF)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professional    Professional?
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Plan {
+  id                String         @id @default(uuid())
+  tier              PlanTier       @unique
+  name              String
+  description       String
+  monthlyPriceCents Int
+  annualPriceCents  Int
+  maxProfessionals  Int            @default(1)
+  maxAppointmentsMo Int            @default(100)
+  maxClients        Int            @default(200)
+  hasWhatsApp       Boolean        @default(false)
+  hasGoogleCalendar Boolean        @default(false)
+  hasOnlinePayment  Boolean        @default(false)
+  hasCustomDomain   Boolean        @default(false)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  subscriptions     Subscription[]
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  organizationId       String             @unique
+  planId               String
+  status               SubscriptionStatus @default(TRIALING)
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  externalCustomerId   String?
+  externalSubscriptionId String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                 Plan               @relation(fields: [planId], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model Professional {
+  id              String             @id @default(uuid())
+  organizationId  String
+  memberId        String             @unique
+  name            String
+  bio             String?
+  avatarUrl       String?
+  specialty       String?
+  registrationId  String?
+  phone           String?
+  color           String             @default("#3B82F6")
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member          OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  services        ServiceProfessional[]
+  availabilities  WeeklyAvailability[]
+  exceptions      AvailabilityException[]
+  appointments    Appointment[]
+  calendarSync    CalendarConnection?
+
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model Service {
+  id                   String                @id @default(uuid())
+  organizationId       String
+  name                 String
+  description          String?
+  durationMinutes      Int
+  bufferMinutes        Int                   @default(10)
+  priceCents           Int
+  promotionalPriceCents Int?
+  color                String                @default("#10B981")
+  isActive             Boolean               @default(true)
+  allowOnlineBooking   Boolean               @default(true)
+  paymentRequirement   PaymentRequirement    @default(NONE)
+  depositValueCents    Int?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  professionals        ServiceProfessional[]
+  appointments         Appointment[]
+
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model ServiceProfessional {
+  serviceId      String
+  professionalId String
+
+  service        Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, professionalId])
+}
+
+model WeeklyAvailability {
+  id             String       @id @default(uuid())
+  professionalId String
+  dayOfWeek      DayOfWeek
+  startTime      String
+  endTime        String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, dayOfWeek])
+}
+
+model AvailabilityException {
+  id             String       @id @default(uuid())
+  professionalId String
+  date           DateTime     @db.Date
+  startTime      String?
+  endTime        String?
+  isBlocked      Boolean      @default(true)
+  reason         String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, date])
+}
+
+model Client {
+  id                   String        @id @default(uuid())
+  organizationId       String
+  fullName             String
+  phone                String
+  email                String?
+  birthDate            DateTime?     @db.Date
+  notes                String?
+  communicationConsent Boolean       @default(true)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  organization         Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointments         Appointment[]
+
+  @@unique([organizationId, phone])
+  @@index([organizationId])
+  @@index([fullName])
+}
+
+model Appointment {
+  id                  String             @id @default(uuid())
+  organizationId      String
+  professionalId      String
+  serviceId           String
+  clientId            String
+  startTime           DateTime           @db.Timestamptz
+  endTime             DateTime           @db.Timestamptz
+  slotKey             String
+  status              AppointmentStatus  @default(CONFIRMED)
+  totalPriceCents     Int
+  depositAmountCents  Int                @default(0)
+  isOnlineMeeting     Boolean            @default(false)
+  meetingUrl          String?
+  notes               String?
+  cancellationReason  String?
+  cancelledAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  professional        Professional       @relation(fields: [professionalId], references: [id])
+  service             Service            @relation(fields: [serviceId], references: [id])
+  client              Client             @relation(fields: [clientId], references: [id])
+  payment             Payment?
+  bookingToken        BookingToken?
+  notificationLogs    NotificationLog[]
+
+  @@unique([slotKey, status])
+  @@index([organizationId, startTime])
+  @@index([professionalId, startTime])
+  @@index([clientId])
+  @@index([status])
+}
+
+model BookingToken {
+  id            String       @id @default(uuid())
+  token         String       @unique
+  appointmentId String       @unique
+  expiresAt     DateTime
+  createdAt     DateTime     @default(now())
+
+  appointment   Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model Payment {
+  id                   String         @id @default(uuid())
+  organizationId       String
+  appointmentId        String         @unique
+  gateway              PaymentGateway
+  amountCents          Int
+  status               PaymentStatus  @default(PENDING)
+  externalInvoiceId    String?
+  externalPaymentId    String?
+  pixQrCodeText        String?
+  pixQrCodeBase64      String?
+  paymentUrl           String?
+  paidAt               DateTime?
+  failedAt             DateTime?
+  refundedAt           DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointment          Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([externalInvoiceId])
+}
+
+model PublicBookingSettings {
+  id                   String       @id @default(uuid())
+  organizationId       String       @unique
+  headline             String       @default("Agende seu horário online")
+  aboutText            String?
+  logoUrl              String?
+  bannerUrl            String?
+  primaryColor         String       @default("#2563EB")
+  minNoticeHours       Int          @default(2)
+  maxNoticeDays        Int          @default(60)
+  allowCancellation    Boolean      @default(true)
+  cancellationHoursLimit Int        @default(24)
+  allowRescheduling    Boolean      @default(true)
+  rescheduleHoursLimit Int          @default(24)
+  termsText            String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model WhatsAppConnection {
+  id              String       @id @default(uuid())
+  organizationId  String       @unique
+  phoneNumberId   String?
+  wabaId          String?
+  accessTokenEnc  String?
+  isConnected     Boolean      @default(false)
+  lastHealthCheck DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model CalendarConnection {
+  id              String       @id @default(uuid())
+  professionalId  String       @unique
+  refreshTokenEnc String
+  calendarId      String       @default("primary")
+  syncEnabled     Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  professional    Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+}
+
+model NotificationLog {
+  id              String              @id @default(uuid())
+  organizationId  String
+  appointmentId   String?
+  channel         NotificationChannel
+  recipient       String
+  templateName    String
+  status          NotificationStatus  @default(PENDING)
+  errorMessage    String?
+  sentAt          DateTime?
+  createdAt       DateTime            @default(now())
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointment     Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String
+  entity         String
+  entityId       String
+  ipAddress      String?
+  details        Json?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([action])
+}
