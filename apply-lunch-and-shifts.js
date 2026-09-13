@@ -1,4 +1,12 @@
-'use client';
+// apply-lunch-and-shifts.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("🍱 Aplicando a tela de Turnos, Almoço e Intervalo de Respiro...\n");
+
+const targetPath = path.join(process.cwd(), "src/components/schedule/interactive-schedule-view.tsx");
+
+const code = `'use client';
 import React, { useState, useTransition } from 'react';
 import { Clock, ShieldCheck, Check, Save, Copy, Utensils } from 'lucide-react';
 import { saveFullScheduleConfigAction } from '@/modules/availability/schedule-actions';
@@ -278,4 +286,7 @@ export function InteractiveScheduleView({ initialRules, initialSchedule, initial
       </div>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(targetPath, code, "utf-8");
+console.log("✓ Componente atualizado com sucesso em: " + targetPath);
