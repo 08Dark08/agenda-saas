@@ -1,4 +1,12 @@
-import { NextResponse } from "next/server";
+// fix-public-routes.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("🔓 Liberando as rotas de Termos de Uso e Privacidade no Middleware...\n");
+
+const targetPath = path.join(process.cwd(), "src/middleware.ts");
+
+const code = `import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
@@ -58,4 +66,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: ["/((?!api/health|_next/static|_next/image|favicon.ico).*)"],
-};
+};`;
+
+fs.writeFileSync(targetPath, code, "utf-8");
+console.log("✓ Middleware atualizado com /termos e /privacidade liberados!");
