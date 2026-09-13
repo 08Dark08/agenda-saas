@@ -1,4 +1,12 @@
-'use server';
+// fix-action-final.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("🔧 Reescrevendo schedule-actions.ts com padrão estrito do TypeScript...\n");
+
+const targetPath = path.join(process.cwd(), "src/modules/availability/schedule-actions.ts");
+
+const code = `'use server';
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
@@ -134,4 +142,7 @@ export async function getDynamicSlotsForDayAction(
   } catch (err: any) {
     return { slots: ["08:30", "09:30", "10:30", "14:00", "15:00", "16:00"], isClosed: false };
   }
-}
+}`;
+
+fs.writeFileSync(targetPath, code, "utf-8");
+console.log("✓ Arquivo schedule-actions.ts 100% corrigido!");
