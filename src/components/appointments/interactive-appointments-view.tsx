@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useTransition } from 'react';
-import { format } from 'date-fns';
+import { format, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, Clock, Plus, CheckCircle2, UserX, XCircle, X, Search, Phone } from 'lucide-react';
 import { updateAppointmentStatusAction, createManualAppointmentAction } from '@/modules/appointments/interactive-actions';
@@ -130,7 +130,16 @@ export function InteractiveAppointmentsView({
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700 flex flex-col items-center justify-center font-black">
                   <span className="text-base leading-none">{format(new Date(appt.startTime), 'HH:mm')}</span>
-                  <span className="text-[10px] font-bold text-blue-500 uppercase mt-1">Hoje</span>
+                  {(() => {
+                    const d = new Date(appt.startTime);
+                    if (isToday(d)) {
+                      return <span className="text-[9px] font-black text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded uppercase mt-1">HOJE</span>;
+                    }
+                    if (isTomorrow(d)) {
+                      return <span className="text-[9px] font-black text-indigo-700 bg-indigo-100/80 px-1.5 py-0.5 rounded uppercase mt-1">AMANHÃ</span>;
+                    }
+                    return <span className="text-[9px] font-black text-blue-600 bg-blue-100/60 px-1 py-0.5 rounded uppercase mt-1">{format(d, "dd/MMM", { locale: ptBR }).toUpperCase()}</span>;
+                  })()}
                 </div>
                 <div>
                   <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">
