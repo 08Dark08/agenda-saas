@@ -150,6 +150,7 @@ export function InteractiveAppointmentsView({
                     <span className="font-semibold text-slate-700">{appt.service.name}</span>
                     <span>•</span>
                     <span>{appt.client.phone}</span>
+                    <span className='bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[10px] ml-1'>PIX Sinal R$ 50,00</span>
                   </div>
                 </div>
               </div>

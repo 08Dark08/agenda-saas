@@ -1,4 +1,119 @@
-'use client';
+// install-module-1-pix.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("💰 Instalando o Módulo 1: Cobrança de Sinal Antecipado via PIX...\n");
+
+// 1. ATUALIZA A SERVER ACTION: public-actions.ts para gravar o sinal pago
+const actionPath = path.join(process.cwd(), "src/modules/booking/public-actions.ts");
+const actionCode = `'use server';
+import { prisma } from "@/lib/db/prisma";
+import crypto from "crypto";
+import { addMinutes } from "date-fns";
+import { revalidatePath } from "next/cache";
+
+export async function createRealBookingAction(data: {
+  slug: string;
+  clientName: string;
+  clientPhone: string;
+  dateStr: string;
+  timeSlot: string;
+  professionalId?: string;
+  depositPaidCents?: number; // VALOR DO SINAL PAGO VIA PIX
+}) {
+  try {
+    const org = await prisma.organization.findUnique({
+      where: { slug: data.slug },
+      include: {
+        services: { where: { isActive: true } },
+        professionals: { where: { isActive: true } },
+      },
+    });
+
+    if (!org || org.services.length === 0 || org.professionals.length === 0) {
+      return { success: false, error: "Clínica ou serviços não disponíveis." };
+    }
+
+    const service = org.services[0];
+    let professional = org.professionals[0];
+    if (data.professionalId) {
+      const selected = org.professionals.find(p => p.id === data.professionalId);
+      if (selected) professional = selected;
+    }
+
+    const isoStringWithTimezone = data.dateStr + "T" + data.timeSlot + ":00-03:00";
+    const startTime = new Date(isoStringWithTimezone);
+    const endTime = addMinutes(startTime, service.durationMinutes);
+
+    const slotKey = "slot_" + professional.id + "_" + startTime.toISOString() + "_" + Date.now();
+
+    const client = await prisma.client.upsert({
+      where: {
+        organizationId_phone: {
+          organizationId: org.id,
+          phone: data.clientPhone,
+        },
+      },
+      update: { fullName: data.clientName },
+      create: {
+        organizationId: org.id,
+        fullName: data.clientName,
+        phone: data.clientPhone,
+      },
+    });
+
+    const depositCents = data.depositPaidCents || 0;
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        organizationId: org.id,
+        professionalId: professional.id,
+        serviceId: service.id,
+        clientId: client.id,
+        startTime,
+        endTime,
+        slotKey,
+        status: "CONFIRMED",
+        totalPriceCents: service.priceCents,
+        depositAmountCents: depositCents, // REGISTRA O SINAL PAGO NO SUPABASE
+      },
+    });
+
+    // Se houve sinal, registra o pagamento no histórico financeiro
+    if (depositCents > 0) {
+      await prisma.payment.create({
+        data: {
+          organizationId: org.id,
+          appointmentId: appointment.id,
+          gateway: "ASAAS",
+          amountCents: depositCents,
+          status: "PAID",
+          paidAt: new Date(),
+        }
+      });
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath("/appointments");
+    revalidatePath("/clients");
+    revalidatePath("/financial");
+
+    return { 
+      success: true, 
+      token: "tok_" + appointment.id,
+      professionalName: professional.name 
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}`;
+
+fs.writeFileSync(actionPath, actionCode, "utf-8");
+console.log("  ✓ Server Action atualizada com registro de sinal PIX!");
+
+// 2. ATUALIZA A TELA PÚBLICA COM O PASSO DE PAGAMENTO PIX E QR CODE
+const viewPath = path.join(process.cwd(), "src/components/booking/public-booking-client-view.tsx");
+const viewCode = `'use client';
 import React, { useState, useMemo } from 'react';
 import { 
   Calendar, Clock, CheckCircle2, ChevronRight, ArrowLeft, 
@@ -57,7 +172,7 @@ export function PublicBookingClientView({
   const [searchError, setSearchError] = useState('');
 
   // Código PIX Copia e Cola formatado
-  const pixKey = phone.replace(/\D/g, "") || "54996591765";
+  const pixKey = phone.replace(/\\D/g, "") || "54996591765";
   const pixCopiaCola = "00020126360014BR.GOV.BCB.PIX0114" + pixKey + "520400005303986540550.005802BR5909" + businessName.slice(0, 9).toUpperCase() + "6009SAO PAULO62070503***6304";
   const qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(pixCopiaCola);
 
@@ -99,7 +214,7 @@ export function PublicBookingClientView({
   }, [selectedDate, selectedService, weeklySchedule, bufferMinutes]);
 
   const rawPhone = String(phone || '54996591765');
-  const cleanPhone = rawPhone.replace(/\D/g, '') || '54996591765';
+  const cleanPhone = rawPhone.replace(/\\D/g, '') || '54996591765';
   const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
   const whatsappUrl = 'https://wa.me/' + fullPhone + '?text=' + encodeURIComponent('Olá! Gostaria de tirar uma dúvida sobre agendamento.');
 
@@ -436,4 +551,22 @@ export function PublicBookingClientView({
       </footer>
     </div>
   );
+}`;
+
+fs.writeFileSync(viewPath, viewCode, "utf-8");
+console.log("  ✓ Tela de pagamento PIX e QR Code instalada com sucesso!");
+
+// 3. ATUALIZA A AGENDA (/appointments) PARA EXIBIR A TAG DE SINAL PAGO
+const apptPath = path.join(process.cwd(), "src/components/appointments/interactive-appointments-view.tsx");
+let apptContent = fs.readFileSync(apptPath, "utf-8");
+
+if (!apptContent.includes("Sinal:")) {
+  apptContent = apptContent.replace(
+    "<span>•</span>\n                    <span>{appt.client.phone}</span>",
+    "<span>•</span>\n                    <span>{appt.client.phone}</span>\n                    <span className='bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[10px] ml-1'>PIX Sinal R$ 50,00</span>"
+  );
+  fs.writeFileSync(apptPath, apptContent, "utf-8");
+  console.log("  ✓ Agenda atualizada com a tag de Sinal PIX nos cards!");
 }
+
+console.log("\n💰 Módulo 1: Cobrança de Sinal PIX instalado com 100% de sucesso!");

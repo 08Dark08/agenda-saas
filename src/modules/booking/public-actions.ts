@@ -10,7 +10,8 @@ export async function createRealBookingAction(data: {
   clientPhone: string;
   dateStr: string;
   timeSlot: string;
-  professionalId?: string; // ID DO MÉDICO ESCOLHIDO PELO PACIENTE
+  professionalId?: string;
+  depositPaidCents?: number; // VALOR DO SINAL PAGO VIA PIX
 }) {
   try {
     const org = await prisma.organization.findUnique({
@@ -26,8 +27,6 @@ export async function createRealBookingAction(data: {
     }
 
     const service = org.services[0];
-    
-    // Direciona para o profissional escolhido ou para o primeiro da lista
     let professional = org.professionals[0];
     if (data.professionalId) {
       const selected = org.professionals.find(p => p.id === data.professionalId);
@@ -55,10 +54,12 @@ export async function createRealBookingAction(data: {
       },
     });
 
+    const depositCents = data.depositPaidCents || 0;
+
     const appointment = await prisma.appointment.create({
       data: {
         organizationId: org.id,
-        professionalId: professional.id, // GRAVA VINCULADO AO MÉDICO CORRETO
+        professionalId: professional.id,
         serviceId: service.id,
         clientId: client.id,
         startTime,
@@ -66,12 +67,28 @@ export async function createRealBookingAction(data: {
         slotKey,
         status: "CONFIRMED",
         totalPriceCents: service.priceCents,
+        depositAmountCents: depositCents, // REGISTRA O SINAL PAGO NO SUPABASE
       },
     });
+
+    // Se houve sinal, registra o pagamento no histórico financeiro
+    if (depositCents > 0) {
+      await prisma.payment.create({
+        data: {
+          organizationId: org.id,
+          appointmentId: appointment.id,
+          gateway: "ASAAS",
+          amountCents: depositCents,
+          status: "PAID",
+          paidAt: new Date(),
+        }
+      });
+    }
 
     revalidatePath("/dashboard");
     revalidatePath("/appointments");
     revalidatePath("/clients");
+    revalidatePath("/financial");
 
     return { 
       success: true, 
