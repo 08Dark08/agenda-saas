@@ -2,6 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { 
+  DollarSign, 
   Calendar, Users, Sparkles, Clock, LayoutDashboard, 
   ExternalLink, LogOut, ChevronRight, Settings 
 } from 'lucide-react';
@@ -9,7 +10,7 @@ import { logoutAction } from '@/modules/auth/actions';
 
 interface ShellProps {
   children: React.ReactNode;
-  activePage: 'dashboard' | 'appointments' | 'clients' | 'services' | 'schedule' | 'settings';
+  activePage: 'dashboard' | 'appointments' | 'clients' | 'services' | 'schedule' | 'settings' | 'financial';
   businessName?: string;
   slug?: string;
 }
@@ -23,6 +24,7 @@ export function DashboardShell({
   const navItems = [
     { id: 'dashboard', label: 'Painel Geral', href: '/dashboard', icon: LayoutDashboard },
     { id: 'appointments', label: 'Agenda & Horários', href: '/appointments', icon: Calendar },
+    { id: 'financial', label: 'Financeiro', href: '/financial', icon: DollarSign },
     { id: 'clients', label: 'Clientes (CRM)', href: '/clients', icon: Users },
     { id: 'services', label: 'Serviços Oferecidos', href: '/services', icon: Sparkles },
     { id: 'schedule', label: 'Grade Semanal', href: '/schedule', icon: Clock },
