@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/request";
+import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const PUBLIC_ROUTES = ["/", "/login", "/register"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/_next") || pathname.startsWith("/api/health") || pathname.includes(".")) {
+  
+  if (
+    pathname.startsWith("/_next") || 
+    pathname.startsWith("/api/health") || 
+    pathname.includes(".")
+  ) {
     return NextResponse.next();
   }
 
