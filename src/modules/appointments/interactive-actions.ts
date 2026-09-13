@@ -1,6 +1,7 @@
 'use server';
 import { prisma } from "@/lib/db/prisma";
 import { revalidatePath } from "next/cache";
+import { addMinutes, format } from "date-fns";
 
 export async function updateAppointmentStatusAction(appointmentId: string, newStatus: any) {
   try {
@@ -31,10 +32,10 @@ export async function createManualAppointmentAction(formData: {
       where: { organizationId: service.organizationId },
     });
 
-    const [hours, minutes] = formData.time.split(":").map(Number);
-    const startTime = new Date();
-    startTime.setHours(hours, minutes, 0, 0);
-    const endTime = new Date(startTime.getTime() + service.durationMinutes * 60000);
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    // TRAVA NO FUSO DE BRASÍLIA (-03:00)
+    const startTime = new Date(todayStr + "T" + formData.time + ":00-03:00");
+    const endTime = addMinutes(startTime, service.durationMinutes);
 
     const client = await prisma.client.upsert({
       where: {
@@ -51,7 +52,7 @@ export async function createManualAppointmentAction(formData: {
       },
     });
 
-    const slotKey = `manual_${professional?.id || 'pro'}_${startTime.toISOString()}_${Date.now()}`;
+    const slotKey = "manual_" + (professional?.id || "pro") + "_" + startTime.toISOString() + "_" + Date.now();
 
     await prisma.appointment.create({
       data: {

@@ -1,15 +1,15 @@
 'use server';
 import { prisma } from "@/lib/db/prisma";
 import crypto from "crypto";
-import { addDays, addMinutes, parse } from "date-fns";
+import { addMinutes } from "date-fns";
 import { revalidatePath } from "next/cache";
 
 export async function createRealBookingAction(data: {
   slug: string;
   clientName: string;
   clientPhone: string;
-  dateStr: string; // Ex: "2025-03-20"
-  timeSlot: string; // Ex: "14:00"
+  dateStr: string; // "YYYY-MM-DD"
+  timeSlot: string; // "16:00"
 }) {
   try {
     const org = await prisma.organization.findUnique({
@@ -27,10 +27,9 @@ export async function createRealBookingAction(data: {
     const service = org.services[0];
     const professional = org.professionals[0];
 
-    // Cria a data exata selecionada pelo cliente
-    const [hours, minutes] = data.timeSlot.split(":").map(Number);
-    const dateParts = data.dateStr.split("-").map(Number); // YYYY, MM, DD
-    const startTime = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes, 0);
+    // TRAVA NO FUSO DE BRASÍLIA (-03:00) - Elimina a perda de 3 horas na Vercel
+    const isoStringWithTimezone = data.dateStr + "T" + data.timeSlot + ":00-03:00";
+    const startTime = new Date(isoStringWithTimezone);
     const endTime = addMinutes(startTime, service.durationMinutes);
 
     const slotKey = "slot_" + professional.id + "_" + startTime.toISOString() + "_" + Date.now();
