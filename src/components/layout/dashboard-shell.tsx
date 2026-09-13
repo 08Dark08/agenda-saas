@@ -2,6 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { 
+  UserCheck, 
   DollarSign, 
   Calendar, Users, Sparkles, Clock, LayoutDashboard, 
   ExternalLink, LogOut, ChevronRight, Settings 
@@ -10,7 +11,7 @@ import { logoutAction } from '@/modules/auth/actions';
 
 interface ShellProps {
   children: React.ReactNode;
-  activePage: 'dashboard' | 'appointments' | 'clients' | 'services' | 'schedule' | 'settings' | 'financial';
+  activePage: 'dashboard' | 'appointments' | 'clients' | 'services' | 'schedule' | 'settings' | 'financial' | 'team';
   businessName?: string;
   slug?: string;
 }
@@ -26,6 +27,7 @@ export function DashboardShell({
     { id: 'appointments', label: 'Agenda & Horários', href: '/appointments', icon: Calendar },
     { id: 'financial', label: 'Financeiro', href: '/financial', icon: DollarSign },
     { id: 'clients', label: 'Clientes (CRM)', href: '/clients', icon: Users },
+    { id: 'team', label: 'Equipe', href: '/team', icon: Users },
     { id: 'services', label: 'Serviços Oferecidos', href: '/services', icon: Sparkles },
     { id: 'schedule', label: 'Grade Semanal', href: '/schedule', icon: Clock },
     { id: 'settings', label: 'Configurações', href: '/settings', icon: Settings },
