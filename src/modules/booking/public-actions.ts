@@ -8,8 +8,9 @@ export async function createRealBookingAction(data: {
   slug: string;
   clientName: string;
   clientPhone: string;
-  dateStr: string; // "YYYY-MM-DD"
-  timeSlot: string; // "16:00"
+  dateStr: string;
+  timeSlot: string;
+  professionalId?: string; // ID DO MÉDICO ESCOLHIDO PELO PACIENTE
 }) {
   try {
     const org = await prisma.organization.findUnique({
@@ -25,9 +26,14 @@ export async function createRealBookingAction(data: {
     }
 
     const service = org.services[0];
-    const professional = org.professionals[0];
+    
+    // Direciona para o profissional escolhido ou para o primeiro da lista
+    let professional = org.professionals[0];
+    if (data.professionalId) {
+      const selected = org.professionals.find(p => p.id === data.professionalId);
+      if (selected) professional = selected;
+    }
 
-    // TRAVA NO FUSO DE BRASÍLIA (-03:00) - Elimina a perda de 3 horas na Vercel
     const isoStringWithTimezone = data.dateStr + "T" + data.timeSlot + ":00-03:00";
     const startTime = new Date(isoStringWithTimezone);
     const endTime = addMinutes(startTime, service.durationMinutes);
@@ -52,7 +58,7 @@ export async function createRealBookingAction(data: {
     const appointment = await prisma.appointment.create({
       data: {
         organizationId: org.id,
-        professionalId: professional.id,
+        professionalId: professional.id, // GRAVA VINCULADO AO MÉDICO CORRETO
         serviceId: service.id,
         clientId: client.id,
         startTime,
@@ -67,7 +73,11 @@ export async function createRealBookingAction(data: {
     revalidatePath("/appointments");
     revalidatePath("/clients");
 
-    return { success: true, token: "tok_" + appointment.id };
+    return { 
+      success: true, 
+      token: "tok_" + appointment.id,
+      professionalName: professional.name 
+    };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

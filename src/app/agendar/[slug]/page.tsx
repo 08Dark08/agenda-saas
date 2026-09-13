@@ -13,6 +13,7 @@ export default async function PublicBookingPage({ params }: { params: { slug: st
     include: {
       publicSettings: true,
       services: { where: { isActive: true }, orderBy: { createdAt: 'desc' } },
+      professionals: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
     },
   });
 
@@ -42,12 +43,20 @@ export default async function PublicBookingPage({ params }: { params: { slug: st
     price: s.priceCents / 100,
   }));
 
+  const serializedPros = org.professionals.map(p => ({
+    id: p.id,
+    name: p.name,
+    specialty: p.specialty || 'Especialista',
+    phone: p.phone || '',
+  }));
+
   return (
     <PublicBookingClientView
       slug={org.slug}
       businessName={org.name}
       phone={org.phone}
       services={serializedServices}
+      professionals={serializedPros}
       weeklySchedule={scheduleConfig?.weeklySchedule || defaultSchedule}
       bufferMinutes={scheduleConfig?.bufferMinutes || 0}
     />

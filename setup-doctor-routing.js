@@ -1,4 +1,172 @@
-'use client';
+// setup-doctor-routing.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("👨‍⚕️ Instalando o direcionamento inteligente de agendamentos por médico...\n");
+
+// 1. ATUALIZA A SERVER ACTION: public-actions.ts para aceitar o professionalId escolhido
+const actionPath = path.join(process.cwd(), "src/modules/booking/public-actions.ts");
+const actionCode = `'use server';
+import { prisma } from "@/lib/db/prisma";
+import crypto from "crypto";
+import { addMinutes } from "date-fns";
+import { revalidatePath } from "next/cache";
+
+export async function createRealBookingAction(data: {
+  slug: string;
+  clientName: string;
+  clientPhone: string;
+  dateStr: string;
+  timeSlot: string;
+  professionalId?: string; // ID DO MÉDICO ESCOLHIDO PELO PACIENTE
+}) {
+  try {
+    const org = await prisma.organization.findUnique({
+      where: { slug: data.slug },
+      include: {
+        services: { where: { isActive: true } },
+        professionals: { where: { isActive: true } },
+      },
+    });
+
+    if (!org || org.services.length === 0 || org.professionals.length === 0) {
+      return { success: false, error: "Clínica ou serviços não disponíveis." };
+    }
+
+    const service = org.services[0];
+    
+    // Direciona para o profissional escolhido ou para o primeiro da lista
+    let professional = org.professionals[0];
+    if (data.professionalId) {
+      const selected = org.professionals.find(p => p.id === data.professionalId);
+      if (selected) professional = selected;
+    }
+
+    const isoStringWithTimezone = data.dateStr + "T" + data.timeSlot + ":00-03:00";
+    const startTime = new Date(isoStringWithTimezone);
+    const endTime = addMinutes(startTime, service.durationMinutes);
+
+    const slotKey = "slot_" + professional.id + "_" + startTime.toISOString() + "_" + Date.now();
+
+    const client = await prisma.client.upsert({
+      where: {
+        organizationId_phone: {
+          organizationId: org.id,
+          phone: data.clientPhone,
+        },
+      },
+      update: { fullName: data.clientName },
+      create: {
+        organizationId: org.id,
+        fullName: data.clientName,
+        phone: data.clientPhone,
+      },
+    });
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        organizationId: org.id,
+        professionalId: professional.id, // GRAVA VINCULADO AO MÉDICO CORRETO
+        serviceId: service.id,
+        clientId: client.id,
+        startTime,
+        endTime,
+        slotKey,
+        status: "CONFIRMED",
+        totalPriceCents: service.priceCents,
+      },
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath("/appointments");
+    revalidatePath("/clients");
+
+    return { 
+      success: true, 
+      token: "tok_" + appointment.id,
+      professionalName: professional.name 
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}`;
+
+fs.writeFileSync(actionPath, actionCode, "utf-8");
+console.log("  ✓ Server Action atualizada para direcionar ao médico escolhido!");
+
+// 2. ATUALIZA A PÁGINA SERVER (/agendar/[slug]/page.tsx) PARA CARREGAR OS MÉDICOS DO SUPABASE
+const pagePath = path.join(process.cwd(), "src/app/agendar/[slug]/page.tsx");
+const pageCode = `import React from 'react';
+import { prisma } from '@/lib/db/prisma';
+import { notFound } from 'next/navigation';
+import { PublicBookingClientView } from '@/components/booking/public-booking-client-view';
+
+export const dynamic = 'force-dynamic';
+
+export default async function PublicBookingPage({ params }: { params: { slug: string } }) {
+  const slug = params?.slug || 'viverbem';
+
+  const org = await prisma.organization.findFirst({
+    where: { slug },
+    include: {
+      publicSettings: true,
+      services: { where: { isActive: true }, orderBy: { createdAt: 'desc' } },
+      professionals: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
+    },
+  });
+
+  if (!org) notFound();
+
+  let scheduleConfig = null;
+  if (org.publicSettings?.termsText) {
+    try {
+      scheduleConfig = JSON.parse(org.publicSettings.termsText);
+    } catch {}
+  }
+
+  const defaultSchedule = [
+    { day: 'Segunda-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Terça-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Quarta-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Quinta-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Sexta-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Sábado', enabled: false, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Domingo', enabled: false, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+  ];
+
+  const serializedServices = org.services.map(s => ({
+    id: s.id,
+    name: s.name,
+    duration: s.durationMinutes,
+    price: s.priceCents / 100,
+  }));
+
+  const serializedPros = org.professionals.map(p => ({
+    id: p.id,
+    name: p.name,
+    specialty: p.specialty || 'Especialista',
+    phone: p.phone || '',
+  }));
+
+  return (
+    <PublicBookingClientView
+      slug={org.slug}
+      businessName={org.name}
+      phone={org.phone}
+      services={serializedServices}
+      professionals={serializedPros}
+      weeklySchedule={scheduleConfig?.weeklySchedule || defaultSchedule}
+      bufferMinutes={scheduleConfig?.bufferMinutes || 0}
+    />
+  );
+}`;
+
+fs.writeFileSync(pagePath, pageCode, "utf-8");
+console.log("  ✓ Página pública configurada para listar a equipe de médicos do Supabase!");
+
+// 3. ATUALIZA A TELA PÚBLICA COM O PASSO DE ESCOLHA DO MÉDICO
+const viewPath = path.join(process.cwd(), "src/components/booking/public-booking-client-view.tsx");
+const viewCode = `'use client';
 import React, { useState, useMemo } from 'react';
 import { Calendar, Clock, CheckCircle2, ChevronRight, ArrowLeft, ShieldCheck, MessageCircle, X, UserCheck, Stethoscope } from 'lucide-react';
 import { createRealBookingAction } from '@/modules/booking/public-actions';
@@ -88,7 +256,7 @@ export function PublicBookingClientView({
   }, [selectedDate, selectedService, weeklySchedule, bufferMinutes]);
 
   const rawPhone = String(phone || '54996591765');
-  const cleanPhone = rawPhone.replace(/\D/g, '') || '54996591765';
+  const cleanPhone = rawPhone.replace(/\\D/g, '') || '54996591765';
   const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
   const whatsappUrl = 'https://wa.me/' + fullPhone + '?text=' + encodeURIComponent('Olá! Gostaria de tirar uma dúvida sobre agendamento.');
 
@@ -355,4 +523,65 @@ export function PublicBookingClientView({
       </footer>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(viewPath, viewCode, "utf-8");
+console.log("  ✓ Direcionamento inteligente por médico instalado na página pública!");
+
+// 4. ATUALIZA A AGENDA (/appointments) PARA EXIBIR O MÉDICO NO CARD
+const apptPath = path.join(process.cwd(), "src/app/appointments/page.tsx");
+const apptCode = `import React from 'react';
+import { prisma } from '@/lib/db/prisma';
+import { getSession } from '@/lib/auth/session';
+import { redirect } from 'next/navigation';
+import { DashboardShell } from '@/components/layout/dashboard-shell';
+import { InteractiveAppointmentsView } from '@/components/appointments/interactive-appointments-view';
+
+export const dynamic = 'force-dynamic';
+
+export default async function AppointmentsPage() {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const [appointments, services, org] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { organizationId: session.organizationId },
+      include: { client: true, service: true, professional: true }, // INCLUI O PROFISSIONAL
+      orderBy: { startTime: 'desc' },
+    }),
+    prisma.service.findMany({
+      where: { organizationId: session.organizationId, isActive: true },
+    }),
+    prisma.organization.findUnique({ where: { id: session.organizationId } }),
+  ]);
+
+  const serializedAppointments = appointments.map(a => ({
+    id: a.id,
+    startTime: a.startTime.toISOString(),
+    status: a.status,
+    client: { fullName: a.client.fullName, phone: a.client.phone },
+    service: { 
+      id: a.service?.id || '', 
+      name: (a.service?.name || 'Consulta') + (a.professional ? ' (👨‍⚕️ ' + a.professional.name + ')' : ''), 
+      durationMinutes: a.service?.durationMinutes || 50 
+    },
+  }));
+
+  return (
+    <DashboardShell 
+      activePage="appointments"
+      businessName={org?.name || 'Minha Clínica'}
+      slug={org?.slug || 'viverbem'}
+    >
+      <InteractiveAppointmentsView 
+        initialAppointments={serializedAppointments} 
+        services={services.map(s => ({ id: s.id, name: s.name, priceCents: s.priceCents }))} 
+      />
+    </DashboardShell>
+  );
+}`;
+
+fs.writeFileSync(apptPath, apptCode, "utf-8");
+console.log("  ✓ Agenda atualizada para exibir o médico responsável em cada consulta!");
+
+console.log("\n🚀 Direcionamento por médico instalado com 100% de sucesso!");
