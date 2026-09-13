@@ -1,14 +1,15 @@
 'use server';
 import { prisma } from "@/lib/db/prisma";
 import crypto from "crypto";
-import { addDays, addMinutes } from "date-fns";
+import { addDays, addMinutes, parse } from "date-fns";
 import { revalidatePath } from "next/cache";
 
 export async function createRealBookingAction(data: {
   slug: string;
   clientName: string;
   clientPhone: string;
-  timeSlot: string;
+  dateStr: string; // Ex: "2025-03-20"
+  timeSlot: string; // Ex: "14:00"
 }) {
   try {
     const org = await prisma.organization.findUnique({
@@ -26,12 +27,13 @@ export async function createRealBookingAction(data: {
     const service = org.services[0];
     const professional = org.professionals[0];
 
+    // Cria a data exata selecionada pelo cliente
     const [hours, minutes] = data.timeSlot.split(":").map(Number);
-    const startTime = new Date();
-    startTime.setHours(hours, minutes, 0, 0);
+    const dateParts = data.dateStr.split("-").map(Number); // YYYY, MM, DD
+    const startTime = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes, 0);
     const endTime = addMinutes(startTime, service.durationMinutes);
 
-    const slotKey = `slot_${professional.id}_${startTime.toISOString()}_${Date.now()}`;
+    const slotKey = "slot_" + professional.id + "_" + startTime.toISOString() + "_" + Date.now();
 
     const client = await prisma.client.upsert({
       where: {
