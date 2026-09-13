@@ -1,4 +1,12 @@
-'use server';
+// fix-team-member.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("👥 Corrigindo criação de membros da equipe com ID independente no Supabase...\n");
+
+const targetPath = path.join(process.cwd(), "src/modules/team/actions.ts");
+
+const code = `'use server';
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
@@ -16,7 +24,7 @@ export async function createProfessionalAction(data: {
   try {
     await prisma.$transaction(async (tx) => {
       // 1. Cria um usuário independente para o novo profissional da equipe
-      const cleanName = data.name.toLowerCase().replace(/\s+/g, "");
+      const cleanName = data.name.toLowerCase().replace(/\\s+/g, "");
       const uniqueEmail = cleanName + "_" + Date.now() + "@equipe.agendapro.com";
 
       const newUser = await tx.user.create({
@@ -82,4 +90,7 @@ export async function deleteProfessionalAction(professionalId: string) {
   } catch (err: any) {
     return { success: false, error: err.message };
   }
-}
+}`;
+
+fs.writeFileSync(targetPath, code, "utf-8");
+console.log("✓ Ações de equipe corrigidas com sucesso!");
