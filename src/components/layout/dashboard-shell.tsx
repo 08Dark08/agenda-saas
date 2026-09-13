@@ -3,13 +3,13 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   Calendar, Users, Sparkles, Clock, LayoutDashboard, 
-  ExternalLink, LogOut, ChevronRight, ShieldCheck 
+  ExternalLink, LogOut, ChevronRight, Settings, ShieldCheck 
 } from 'lucide-react';
 import { logoutAction } from '@/modules/auth/actions';
 
 interface ShellProps {
   children: React.ReactNode;
-  activePage: 'dashboard' | 'appointments' | 'clients' | 'services' | 'schedule';
+  activePage: 'dashboard' | 'appointments' | 'clients' | 'services' | 'schedule' | 'settings';
 }
 
 export function DashboardShell({ children, activePage }: ShellProps) {
@@ -19,27 +19,26 @@ export function DashboardShell({ children, activePage }: ShellProps) {
     { id: 'clients', label: 'Clientes (CRM)', href: '/clients', icon: Users },
     { id: 'services', label: 'Serviços Oferecidos', href: '/services', icon: Sparkles },
     { id: 'schedule', label: 'Grade Semanal', href: '/schedule', icon: Clock },
+    { id: 'settings', label: 'Configurações', href: '/settings', icon: Settings },
   ];
 
   return (
     <div className="min-h-screen bg-slate-50/60 flex flex-col md:flex-row antialiased text-slate-900 font-sans">
-      {/* Sidebar Lateral Fixa */}
+      {/* Sidebar Lateral */}
       <aside className="w-full md:w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between p-5 shrink-0">
         <div className="space-y-6">
-          {/* Logo da Clínica */}
           <div className="flex items-center gap-3 px-2">
             <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/20 font-black">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900 tracking-tight leading-none">Viver Bem</h2>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md mt-1 inline-block uppercase tracking-wider">
-                Plano Pro (Trial)
+              <h2 className="text-sm font-extrabold text-slate-900 tracking-tight leading-none truncate max-w-[130px]">Viver Bem</h2>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md mt-1 inline-block uppercase tracking-wider">
+                14 Dias de Teste
               </span>
             </div>
           </div>
 
-          {/* Links de Navegação com Indicador Ativo */}
           <nav className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -65,7 +64,6 @@ export function DashboardShell({ children, activePage }: ShellProps) {
           </nav>
         </div>
 
-        {/* Rodapé da Sidebar */}
         <div className="pt-5 border-t border-slate-100 space-y-3 px-1">
           <Link
             href="/agendar/viverbem"
@@ -79,7 +77,7 @@ export function DashboardShell({ children, activePage }: ShellProps) {
           <form action={logoutAction}>
             <button
               type="submit"
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-all"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-400 hover:text-red-600 hover:bg-red-50/50 rounded-lg transition-all cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
               Encerrar Sessão
@@ -88,13 +86,13 @@ export function DashboardShell({ children, activePage }: ShellProps) {
         </div>
       </aside>
 
-      {/* Conteúdo Principal com Topbar */}
+      {/* Conteúdo Principal com Topbar de Trial Comercial */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-slate-200/80 px-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <span>SaaS Agendamento</span>
-            <span className="text-slate-300">/</span>
-            <span className="text-slate-800 font-bold capitalize">Viver Bem</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60 hidden sm:inline">
+              Período de Testes Gratuito Ativo
+            </span>
           </div>
 
           <div className="flex items-center gap-4">
