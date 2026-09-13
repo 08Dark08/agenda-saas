@@ -385,6 +385,40 @@ export function PublicBookingClientView({
               <h2 className="text-2xl font-black text-slate-900 tracking-tight">Agendamento Confirmado!</h2>
               <p className="text-xs text-slate-500">Seu horário para <strong className="text-slate-900">{selectedDate} às {selectedSlot}</strong> foi gravado no sistema.</p>
 
+              
+              {/* BOTAO INTELIGENTE DO GOOGLE CALENDAR */}
+              {(() => {
+                if (!selectedDate || !selectedSlot) return null;
+                const [sh, sm] = selectedSlot.split(':').map(Number);
+                const dp = selectedDate.split('-').map(Number);
+                const dur = selectedService?.duration || 50;
+                const sDate = new Date(dp[0], dp[1] - 1, dp[2], sh, sm, 0);
+                const eDate = new Date(sDate.getTime() + dur * 60000);
+
+                const fmtG = (d: Date) => {
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  return '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + 'T' + pad(d.getHours()) + pad(d.getMinutes()) + '00';
+                };
+
+                const title = 'Consulta: ' + (selectedService?.name || 'Atendimento') + ' - ' + businessName;
+                const details = 'Agendamento confirmado com ' + businessName + '.\nTelefone: ' + phone + '\nGerenciar ou cancelar: ' + (typeof window !== 'undefined' ? window.location.origin : '') + '/manage-booking/' + (createdAppointmentId || '');
+                const gUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) + '&dates=' + fmtG(sDate) + '/' + fmtG(eDate) + '&details=' + encodeURIComponent(details) + '&location=' + encodeURIComponent(businessName);
+
+                return (
+                  <div className='pt-1'>
+                    <a
+                      href={gUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='w-full py-3.5 px-4 bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center gap-2.5 transition-all hover:border-blue-300 group cursor-pointer'
+                    >
+                      <Calendar className='w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform' />
+                      <span>Adicionar à minha Agenda do Google</span>
+                    </a>
+                  </div>
+                );
+              })()}
+
               {createdAppointmentId && (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-2 text-xs">
                   <span className="font-bold text-slate-800 block">Precisa cancelar depois?</span>
