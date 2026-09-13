@@ -49,7 +49,7 @@ export default async function DashboardPage() {
   const firstName = session.fullName ? session.fullName.split(' ')[0] : 'Doutor(a)';
 
   return (
-    <DashboardShell activePage="dashboard">
+    <DashboardShell activePage="dashboard" businessName={orgName} slug={orgSlug}>
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

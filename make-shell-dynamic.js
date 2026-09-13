@@ -1,4 +1,12 @@
-'use client';
+// make-shell-dynamic.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("🔄 Tornando o Menu Lateral (Sidebar) 100% dinâmico com o nome real da clínica...\n");
+
+// 1. ATUALIZA O DASHBOARD-SHELL PARA RECEBER O NOME E SLOGAN REAIS
+const shellPath = path.join(process.cwd(), "src/components/layout/dashboard-shell.tsx");
+const shellCode = `'use client';
 import React from 'react';
 import Link from 'next/link';
 import { 
@@ -66,14 +74,14 @@ export function DashboardShell({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all group ${
+                  className={\`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all group \${
                     isActive
                       ? 'bg-blue-50/80 text-blue-600 border border-blue-100 shadow-sm'
                       : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50'
-                  }`}
+                  }\`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-600'}`} />
+                    <Icon className={\`w-4 h-4 \${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-600'}\`} />
                     <span>{item.label}</span>
                   </div>
                   {isActive && <ChevronRight className="w-3.5 h-3.5 text-blue-500" />}
@@ -86,7 +94,7 @@ export function DashboardShell({
         {/* Rodapé da Sidebar com Link Dinâmico */}
         <div className="pt-5 border-t border-slate-100 space-y-3 px-1">
           <Link
-            href={`/agendar/${slug}`}
+            href={\`/agendar/\${slug}\`}
             target="_blank"
             className="flex items-center justify-between w-full px-3.5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all"
           >
@@ -133,4 +141,19 @@ export function DashboardShell({
       </div>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(shellPath, shellCode, "utf-8");
+console.log("  ✓ DashboardShell atualizado com dados 100% dinâmicos!");
+
+// 2. ATUALIZA A PÁGINA DO DASHBOARD PARA PASSAR O NOME E O SLUG CORRETOS
+const dashPath = path.join(process.cwd(), "src/app/dashboard/page.tsx");
+let dashContent = fs.readFileSync(dashPath, "utf-8");
+
+dashContent = dashContent.replace(
+  '<DashboardShell activePage="dashboard">',
+  '<DashboardShell activePage="dashboard" businessName={orgName} slug={orgSlug}>'
+);
+
+fs.writeFileSync(dashPath, dashContent, "utf-8");
+console.log("  ✓ Dashboard conectado aos dados dinâmicos da Sidebar!");
