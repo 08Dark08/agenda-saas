@@ -1,4 +1,73 @@
-'use client';
+// connect-dynamic-slots.js
+const fs = require("fs");
+const path = require("path");
+
+console.log("⚡ Conectando o motor de cálculo dinâmico de slots à página pública...\n");
+
+// 1. ATUALIZA A PÁGINA SERVER (/agendar/[slug]/page.tsx) PARA PASSAR A CONFIGURAÇÃO REAL DA CLÍNICA
+const pagePath = path.join(process.cwd(), "src/app/agendar/[slug]/page.tsx");
+const pageCode = `import React from 'react';
+import { prisma } from '@/lib/db/prisma';
+import { notFound } from 'next/navigation';
+import { PublicBookingClientView } from '@/components/booking/public-booking-client-view';
+
+export const dynamic = 'force-dynamic';
+
+export default async function PublicBookingPage({ params }: { params: { slug: string } }) {
+  const slug = params?.slug || 'viverbem';
+
+  const org = await prisma.organization.findFirst({
+    where: { slug },
+    include: {
+      publicSettings: true,
+      services: { where: { isActive: true }, orderBy: { createdAt: 'desc' } },
+    },
+  });
+
+  if (!org) notFound();
+
+  let scheduleConfig = null;
+  if (org.publicSettings?.termsText) {
+    try {
+      scheduleConfig = JSON.parse(org.publicSettings.termsText);
+    } catch {}
+  }
+
+  const defaultSchedule = [
+    { day: 'Segunda-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Terça-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Quarta-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Quinta-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Sexta-feira', enabled: true, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Sábado', enabled: false, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+    { day: 'Domingo', enabled: false, mStart: '08:00', mEnd: '12:00', aStart: '13:30', aEnd: '18:00' },
+  ];
+
+  const serializedServices = org.services.map(s => ({
+    id: s.id,
+    name: s.name,
+    duration: s.durationMinutes,
+    price: s.priceCents / 100,
+  }));
+
+  return (
+    <PublicBookingClientView
+      slug={org.slug}
+      businessName={org.name}
+      phone={org.phone}
+      services={serializedServices}
+      weeklySchedule={scheduleConfig?.weeklySchedule || defaultSchedule}
+      bufferMinutes={scheduleConfig?.bufferMinutes || 0}
+    />
+  );
+}`;
+
+fs.writeFileSync(pagePath, pageCode, "utf-8");
+console.log("  ✓ Página Server atualizada: src/app/agendar/[slug]/page.tsx");
+
+// 2. ATUALIZA O CLIENT COMPONENT PARA GERAR OS SLOTS DINAMICAMENTE
+const clientViewPath = path.join(process.cwd(), "src/components/booking/public-booking-client-view.tsx");
+const clientViewCode = `'use client';
 import React, { useState, useMemo } from 'react';
 import { Calendar, Clock, CheckCircle2, ChevronRight, ArrowLeft, ShieldCheck, MessageCircle, X } from 'lucide-react';
 import { createRealBookingAction } from '@/modules/booking/public-actions';
@@ -92,7 +161,7 @@ export function PublicBookingClientView({
   }, [selectedDate, selectedService, weeklySchedule, bufferMinutes]);
 
   const rawPhone = String(phone || '54996591765');
-  const cleanPhone = rawPhone.replace(/\D/g, '') || '54996591765';
+  const cleanPhone = rawPhone.replace(/\\D/g, '') || '54996591765';
   const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
   const whatsappUrl = 'https://wa.me/' + fullPhone + '?text=' + encodeURIComponent('Olá! Estou na página de agendamentos da ' + businessName + ' e gostaria de tirar uma dúvida.');
 
@@ -470,4 +539,9 @@ export function PublicBookingClientView({
       </footer>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(clientViewPath, clientViewCode, "utf-8");
+console.log("  ✓ Motor de slots conectado à página pública!");
+
+console.log("\n🚀 Concluído com sucesso! Adeus lista estática de 7 horários!");
